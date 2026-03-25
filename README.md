@@ -20,23 +20,81 @@ Progress bars use gradual-fill dots (`○ ◔ ◑ ◕ ●`) and color-code from 
 
 Turn timing captures full wall-clock time per turn (thinking + tool calls + subagents), not just API latency.
 
-## Install
+## Choose your flavor
+
+Two implementations are available — pick whichever suits your setup:
+
+| | [`ts/`](ts/) | [`sh/`](sh/) |
+|---|---|---|
+| **Files** | 1 (`statusline.ts`) | 3 (`statusline.sh` + 2 hook scripts) |
+| **Runtime** | Node.js + `tsx` | Bash + `jq` + `python3` + `curl` |
+| **Deps** | `npx tsx` | `brew install jq` (rest ships with macOS) |
+
+Both produce identical output.
+
+---
+
+## TypeScript setup
+
+Single file handles statusline + hooks via CLI args.
+
+```bash
+cp ts/statusline.ts ~/.claude/statusline.ts
+chmod +x ~/.claude/statusline.ts
+```
+
+Add to `~/.claude/settings.json`:
+
+```json
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "npx tsx \"$HOME/.claude/statusline.ts\" start",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "npx tsx \"$HOME/.claude/statusline.ts\" stop",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  },
+  "statusLine": {
+    "type": "command",
+    "command": "npx tsx \"$HOME/.claude/statusline.ts\" statusline"
+  }
+}
+```
+
+---
+
+## Shell setup
+
+Three scripts — statusline + two hook scripts for turn timing.
 
 ### Prerequisites
 
-- [Claude Code](https://claude.ai/code) CLI
 - `jq` (`brew install jq` on macOS)
-- `python3` (for timestamps and turn stats — ships with macOS)
+- `python3` (ships with macOS)
 - `curl` and `git`
 
-### Setup
-
 ```bash
-# Copy scripts
-cp statusline.sh ~/.claude/statusline.sh
+cp sh/statusline.sh ~/.claude/statusline.sh
 mkdir -p ~/.claude/scripts
-cp turn-timing-start.sh ~/.claude/scripts/turn-timing-start.sh
-cp turn-timing-stop.sh ~/.claude/scripts/turn-timing-stop.sh
+cp sh/turn-timing-start.sh ~/.claude/scripts/turn-timing-start.sh
+cp sh/turn-timing-stop.sh ~/.claude/scripts/turn-timing-stop.sh
 chmod +x ~/.claude/statusline.sh ~/.claude/scripts/turn-timing-*.sh
 ```
 
@@ -75,7 +133,7 @@ Add to `~/.claude/settings.json`:
 }
 ```
 
-Restart Claude Code.
+---
 
 ## How turn timing works
 
@@ -88,7 +146,9 @@ The statusline reads the history and computes last/avg/p50/max stats. History is
 
 ## Base
 
-Built on top of [kamranahmedse/claude-statusline](https://github.com/kamranahmedse/claude-statusline) with the following additions:
+The shell version is built on top of [kamranahmedse/claude-statusline](https://github.com/kamranahmedse/claude-statusline). The TypeScript version is a clean rewrite with identical output.
+
+Additions over the original:
 
 - Gradual-fill progress dots (`◔ ◑ ◕ ●`)
 - Context window bar stacked above rate limit bars
