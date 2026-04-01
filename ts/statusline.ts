@@ -90,7 +90,6 @@ function fmtRelativeTime(isoStr: string | undefined): string {
     if (isNaN(d.getTime())) return "";
     const diffMs = d.getTime() - Date.now();
     if (diffMs <= 0) {
-      // Past — fall back to absolute time
       return d.toLocaleString("en-US", { hour: "numeric", minute: "2-digit", hour12: true }).toLowerCase().replace(/\./g, "");
     }
     const totalMin = Math.floor(diffMs / 60_000);

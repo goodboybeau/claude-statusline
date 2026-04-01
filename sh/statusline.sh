@@ -113,7 +113,6 @@ format_relative_time() {
     now_epoch=$(date +%s)
     local diff=$(( epoch - now_epoch ))
     if [ "$diff" -le 0 ]; then
-        # Past — fall back to absolute time
         local result=""
         result=$(date -j -r "$epoch" +"%l:%M%p" 2>/dev/null | sed 's/^ //; s/\.//g' | tr '[:upper:]' '[:lower:]')
         [ -z "$result" ] && result=$(date -d "@$epoch" +"%l:%M%P" 2>/dev/null | sed 's/^ //; s/\.//g')
