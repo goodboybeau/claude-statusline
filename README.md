@@ -1,28 +1,40 @@
 # claude-statusline
 
-A multi-line statusline for [Claude Code](https://claude.ai/code) with gradual-fill progress bars, real-time rate limits, and per-turn timing stats.
+Your Claude Code dashboard, right in the terminal. Track every token, every dollar, and every rate limit reset — all without leaving your editor.
 
-![screenshot](screenshot.png)
+![statusline](images/statusline.png)
 
-## What it shows
+## Why this exists
 
-**Line 1:** Model name, session cost, output tokens, directory (branch), session duration, thinking effort
+Claude Code's built-in statusline tells you almost nothing. You're flying blind on your plan with no idea how close you are to a rate limit, how much context you've burned, or how long your turns actually take.
 
-**Stacked bars:**
-| Row | Description |
-|-----|-------------|
-| `context` | Context window usage with token counts |
-| `current` | 5-hour rate limit with reset time |
-| `weekly` | 7-day rate limit with reset date |
-| `turns` | Per-turn wall-clock timing: count, last, avg, p50, max |
+**claude-statusline fixes that.** One glance gives you everything: real-time 5-hour and 7-day rate limit utilization pulled directly from the Anthropic API, context window burn rate, session cost, turn-by-turn performance stats, and countdowns to your next rate limit reset.
 
-Progress bars use gradual-fill dots (`○ ◔ ◑ ◕ ●`) and color-code from green to red as usage increases.
+Stop guessing. Start monitoring.
 
-Turn timing captures full wall-clock time per turn (thinking + tool calls + subagents), not just API latency.
+## What you get
+
+**Line 1** — the essentials at a glance:
+
+Model name, session cost, output tokens, directory + git branch, session duration, thinking effort level
+
+**Stacked bars** — the stuff Anthropic doesn't surface:
+
+| Row | What it tracks |
+|-----|----------------|
+| `context` | Context window usage with token counts — know when autocompact is coming |
+| `current` | 5-hour rolling rate limit with countdown to reset |
+| `weekly` | 7-day rate limit with reset date + time |
+| `extra` | Extra usage spend tracking (if enabled on your plan) |
+| `turns` | Per-turn wall-clock timing: count, last + completion time, avg, p50, max |
+
+Progress bars use gradual-fill dots (`○ ◔ ◑ ◕ ●`) that color-shift from green to red as usage climbs. You'll know you're in trouble before Anthropic cuts you off.
+
+Turn timing captures **full wall-clock time** per turn — thinking, tool calls, subagent orchestration, everything. Not just API latency.
 
 ## Choose your flavor
 
-Two implementations are available — pick whichever suits your setup:
+Two implementations, identical output — pick what fits your stack:
 
 | | [`ts/`](ts/) | [`sh/`](sh/) |
 |---|---|---|
@@ -30,13 +42,11 @@ Two implementations are available — pick whichever suits your setup:
 | **Runtime** | Node.js + `tsx` | Bash + `jq` + `python3` + `curl` |
 | **Deps** | `npx tsx` | `brew install jq` (rest ships with macOS) |
 
-Both produce identical output.
-
 ---
 
 ## TypeScript setup
 
-Single file handles statusline + hooks via CLI args.
+Single file handles statusline + hooks via CLI args. Zero config beyond copy-paste.
 
 ```bash
 cp ts/statusline.ts ~/.claude/statusline.ts
@@ -142,7 +152,11 @@ Two hooks capture wall-clock time per turn:
 1. **`UserPromptSubmit`** records a millisecond timestamp when you press enter
 2. **`Stop`** fires when Claude finishes, computes the delta, and appends to a per-session history file (`/tmp/claude/turns-{session_id}.log`)
 
-The statusline reads the history and computes last/avg/p50/max stats. History is per-session and resets on restart.
+The statusline reads the history and computes last/avg/p50/max stats with the timestamp of the last completion. History is per-session and resets on restart.
+
+## How rate limit tracking works
+
+The statusline fetches your current utilization from the Anthropic OAuth usage API using your existing Claude Code credentials (macOS Keychain or `~/.claude/.credentials.json`). Results are cached for 60 seconds to stay lightweight. No API keys to configure — if you're logged into Claude Code, it just works.
 
 ## Base
 
@@ -150,10 +164,13 @@ The shell version is built on top of [kamranahmedse/claude-statusline](https://g
 
 Additions over the original:
 
-- Gradual-fill progress dots (`◔ ◑ ◕ ●`)
+- Gradual-fill progress dots (`◔ ◑ ◕ ●`) with color-coded thresholds
 - Context window bar stacked above rate limit bars
-- Session cost and output tokens on line 1 (replacing redundant context %)
-- Per-turn wall-clock timing via `UserPromptSubmit` / `Stop` hooks
+- 5-hour and 7-day rate limit utilization from the Anthropic API
+- Relative countdown to next rate limit reset
+- Session cost and output tokens on line 1
+- Per-turn wall-clock timing with completion timestamps via hooks
+- Extra usage spend tracking
 
 ## License
 
