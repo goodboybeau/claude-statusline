@@ -83,18 +83,32 @@ function buildBar(pct: number, width = 10): string {
   return `${color}${"●".repeat(filled)}${partial}${c.dim}${"○".repeat(empty)}${c.reset}`;
 }
 
-function fmtResetTime(isoStr: string | undefined, style: "time" | "datetime" | "date" = "date"): string {
+function fmtRelativeTime(isoStr: string | undefined): string {
   if (!isoStr || isoStr === "null") return "";
   try {
     const d = new Date(isoStr);
     if (isNaN(d.getTime())) return "";
-    const opts: Intl.DateTimeFormatOptions =
-      style === "time"
-        ? { hour: "numeric", minute: "2-digit", hour12: true }
-        : style === "datetime"
-          ? { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", hour12: true }
-          : { month: "short", day: "numeric" };
-    return d.toLocaleString("en-US", opts).toLowerCase().replace(/\./g, "");
+    const diffMs = d.getTime() - Date.now();
+    if (diffMs <= 0) {
+      // Past — fall back to absolute time
+      return d.toLocaleString("en-US", { hour: "numeric", minute: "2-digit", hour12: true }).toLowerCase().replace(/\./g, "");
+    }
+    const totalMin = Math.floor(diffMs / 60_000);
+    const h = Math.floor(totalMin / 60);
+    const m = totalMin % 60;
+    if (h > 0) return `${h}h ${m}m`;
+    return `${m}m`;
+  } catch {
+    return "";
+  }
+}
+
+function fmtResetDateTime(isoStr: string | undefined): string {
+  if (!isoStr || isoStr === "null") return "";
+  try {
+    const d = new Date(isoStr);
+    if (isNaN(d.getTime())) return "";
+    return d.toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", hour12: true }).toLowerCase().replace(/\./g, "");
   } catch {
     return "";
   }
@@ -178,7 +192,7 @@ function fetchUsageData(): UsageData | null {
 
 // ── Turn timing stats ─────────────────────────────────────────────────────────
 
-function getTurnStats(sessionId: string): { last: number; avg: number; med: number; max: number; n: number } | null {
+function getTurnStats(sessionId: string): { last: number; avg: number; med: number; max: number; n: number; completedAt: string } | null {
   const histFile = join(TMP_DIR, `turns-${sessionId}.log`);
   if (!existsSync(histFile)) return null;
 
@@ -194,12 +208,20 @@ function getTurnStats(sessionId: string): { last: number; avg: number; med: numb
   const mid = Math.floor(sorted.length / 2);
   const median = sorted.length % 2 === 0 ? Math.round((sorted[mid - 1] + sorted[mid]) / 2) : sorted[mid];
 
+  // Last completion time from file mtime
+  const mtime = statSync(histFile).mtimeMs;
+  const d = new Date(mtime);
+  const hh = String(d.getHours()).padStart(2, "0");
+  const mm = String(d.getMinutes()).padStart(2, "0");
+  const ss = String(d.getSeconds()).padStart(2, "0");
+
   return {
     last: vals[vals.length - 1],
     avg: Math.round(vals.reduce((a, b) => a + b, 0) / vals.length),
     med: median,
     max: Math.max(...vals),
     n: vals.length,
+    completedAt: `${hh}:${mm}:${ss}`,
   };
 }
 
@@ -325,14 +347,14 @@ async function modeStatusline() {
   if (usage) {
     if (usage.five_hour) {
       const pct = Math.round(usage.five_hour.utilization);
-      const reset = fmtResetTime(usage.five_hour.resets_at, "time");
+      const reset = fmtRelativeTime(usage.five_hour.resets_at);
       barLines.push(
         `${c.white}current${c.reset} ${buildBar(pct)} ${colorForPct(pct)}${String(pct).padStart(3)}%${c.reset} ${c.dim}⟳${c.reset} ${c.white}${reset}${c.reset}`
       );
     }
     if (usage.seven_day) {
       const pct = Math.round(usage.seven_day.utilization);
-      const reset = fmtResetTime(usage.seven_day.resets_at, "datetime");
+      const reset = fmtResetDateTime(usage.seven_day.resets_at);
       barLines.push(
         `${c.white}weekly${c.reset}  ${buildBar(pct)} ${colorForPct(pct)}${String(pct).padStart(3)}%${c.reset} ${c.dim}⟳${c.reset} ${c.white}${reset}${c.reset}`
       );
@@ -352,11 +374,11 @@ async function modeStatusline() {
     const stats = getTurnStats(sessionId);
     if (stats) {
       const parts = [
-        `${c.white}turns${c.reset}   ${c.cyan}${fmtMs(stats.last)}${c.reset} ${c.dim}last${c.reset}`,
+        `${c.white}turns${c.reset}   ${c.dim}n=${c.reset}${c.white}${stats.n}${c.reset}`,
+        `${c.cyan}${fmtMs(stats.last)}${c.reset} ${c.dim}last${c.reset} ${c.dim}@${c.reset}${c.white}${stats.completedAt}${c.reset}`,
         `${c.dim}avg ${c.reset}${c.white}${fmtMs(stats.avg)}${c.reset}`,
         `${c.dim}p50 ${c.reset}${c.white}${fmtMs(stats.med)}${c.reset}`,
         `${c.dim}max ${c.reset}${c.white}${fmtMs(stats.max)}${c.reset}`,
-        `${c.dim}n=${stats.n}${c.reset}`,
       ];
       barLines.push(parts.join(SEP));
     }

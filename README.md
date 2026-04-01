@@ -14,7 +14,7 @@ A multi-line statusline for [Claude Code](https://claude.ai/code) with gradual-f
 | `context` | Context window usage with token counts |
 | `current` | 5-hour rate limit with reset time |
 | `weekly` | 7-day rate limit with reset date |
-| `turns` | Per-turn wall-clock timing: last, avg, p50, max, count |
+| `turns` | Per-turn wall-clock timing: count, last, avg, p50, max |
 
 Progress bars use gradual-fill dots (`○ ◔ ◑ ◕ ●`) and color-code from green to red as usage increases.
 

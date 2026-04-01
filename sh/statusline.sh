@@ -101,9 +101,38 @@ iso_to_epoch() {
     return 1
 }
 
-format_reset_time() {
+format_relative_time() {
     local iso_str="$1"
-    local style="$2"
+    [ -z "$iso_str" ] || [ "$iso_str" = "null" ] && return
+
+    local epoch
+    epoch=$(iso_to_epoch "$iso_str")
+    [ -z "$epoch" ] && return
+
+    local now_epoch
+    now_epoch=$(date +%s)
+    local diff=$(( epoch - now_epoch ))
+    if [ "$diff" -le 0 ]; then
+        # Past — fall back to absolute time
+        local result=""
+        result=$(date -j -r "$epoch" +"%l:%M%p" 2>/dev/null | sed 's/^ //; s/\.//g' | tr '[:upper:]' '[:lower:]')
+        [ -z "$result" ] && result=$(date -d "@$epoch" +"%l:%M%P" 2>/dev/null | sed 's/^ //; s/\.//g')
+        printf "%s" "$result"
+        return
+    fi
+
+    local total_min=$(( diff / 60 ))
+    local h=$(( total_min / 60 ))
+    local m=$(( total_min % 60 ))
+    if [ "$h" -gt 0 ]; then
+        printf "%dh %dm" "$h" "$m"
+    else
+        printf "%dm" "$m"
+    fi
+}
+
+format_reset_datetime() {
+    local iso_str="$1"
     [ -z "$iso_str" ] || [ "$iso_str" = "null" ] && return
 
     local epoch
@@ -111,20 +140,8 @@ format_reset_time() {
     [ -z "$epoch" ] && return
 
     local result=""
-    case "$style" in
-        time)
-            result=$(date -j -r "$epoch" +"%l:%M%p" 2>/dev/null | sed 's/^ //; s/\.//g' | tr '[:upper:]' '[:lower:]')
-            [ -z "$result" ] && result=$(date -d "@$epoch" +"%l:%M%P" 2>/dev/null | sed 's/^ //; s/\.//g')
-            ;;
-        datetime)
-            result=$(date -j -r "$epoch" +"%b %-d, %l:%M%p" 2>/dev/null | sed 's/  / /g; s/^ //; s/\.//g' | tr '[:upper:]' '[:lower:]')
-            [ -z "$result" ] && result=$(date -d "@$epoch" +"%b %-d, %l:%M%P" 2>/dev/null | sed 's/  / /g; s/^ //; s/\.//g')
-            ;;
-        *)
-            result=$(date -j -r "$epoch" +"%b %-d" 2>/dev/null | tr '[:upper:]' '[:lower:]')
-            [ -z "$result" ] && result=$(date -d "@$epoch" +"%b %-d" 2>/dev/null)
-            ;;
-    esac
+    result=$(date -j -r "$epoch" +"%b %-d, %l:%M%p" 2>/dev/null | sed 's/  / /g; s/^ //; s/\.//g' | tr '[:upper:]' '[:lower:]')
+    [ -z "$result" ] && result=$(date -d "@$epoch" +"%b %-d, %l:%M%P" 2>/dev/null | sed 's/  / /g; s/^ //; s/\.//g')
     printf "%s" "$result"
 }
 
@@ -311,7 +328,7 @@ if [ -n "$usage_data" ] && echo "$usage_data" | jq -e . >/dev/null 2>&1; then
 
     five_hour_pct=$(echo "$usage_data" | jq -r '.five_hour.utilization // 0' | awk '{printf "%.0f", $1}')
     five_hour_reset_iso=$(echo "$usage_data" | jq -r '.five_hour.resets_at // empty')
-    five_hour_reset=$(format_reset_time "$five_hour_reset_iso" "time")
+    five_hour_reset=$(format_relative_time "$five_hour_reset_iso")
     five_hour_bar=$(build_bar "$five_hour_pct" "$bar_width")
     five_hour_pct_color=$(color_for_pct "$five_hour_pct")
     five_hour_pct_fmt=$(printf "%3d" "$five_hour_pct")
@@ -320,7 +337,7 @@ if [ -n "$usage_data" ] && echo "$usage_data" | jq -e . >/dev/null 2>&1; then
 
     seven_day_pct=$(echo "$usage_data" | jq -r '.seven_day.utilization // 0' | awk '{printf "%.0f", $1}')
     seven_day_reset_iso=$(echo "$usage_data" | jq -r '.seven_day.resets_at // empty')
-    seven_day_reset=$(format_reset_time "$seven_day_reset_iso" "datetime")
+    seven_day_reset=$(format_reset_datetime "$seven_day_reset_iso")
     seven_day_bar=$(build_bar "$seven_day_pct" "$bar_width")
     seven_day_pct_color=$(color_for_pct "$seven_day_pct")
     seven_day_pct_fmt=$(printf "%3d" "$seven_day_pct")
@@ -382,11 +399,14 @@ EOF
 )
         if [ -n "$turn_stats" ]; then
             IFS='|' read -r t_last t_avg t_med t_max t_n <<< "$turn_stats"
-            turn_line="${white}turns${reset}   ${cyan}${t_last}${reset} ${dim}last${reset}"
+            # Last completion time from file mtime
+            t_completed=$(date -j -r "$(stat -f %m "$history_file" 2>/dev/null)" +"%H:%M:%S" 2>/dev/null)
+            [ -z "$t_completed" ] && t_completed=$(date -d "@$(stat -c %Y "$history_file" 2>/dev/null)" +"%H:%M:%S" 2>/dev/null)
+            turn_line="${white}turns${reset}   ${dim}n=${reset}${white}${t_n}${reset}"
+            turn_line+="${sep}${cyan}${t_last}${reset} ${dim}last${reset} ${dim}@${reset}${white}${t_completed}${reset}"
             turn_line+="${sep}${dim}avg ${reset}${white}${t_avg}${reset}"
             turn_line+="${sep}${dim}p50 ${reset}${white}${t_med}${reset}"
             turn_line+="${sep}${dim}max ${reset}${white}${t_max}${reset}"
-            turn_line+="${sep}${dim}n=${t_n}${reset}"
         fi
     fi
 fi
