@@ -161,18 +161,15 @@ The statusline JSON doesn't include per-turn timing, so we add it with two [hook
 
 The statusline reads the history and computes last/avg/p50/max stats. History is per-session and resets on restart.
 
-## Base
-
-The shell version is built on top of [kamranahmedse/claude-statusline](https://github.com/kamranahmedse/claude-statusline). The TypeScript version is a clean rewrite with identical output.
-
-Additions over the original:
+## Features
 
 - Gradual-fill progress dots (`◔ ◑ ◕ ●`) with color-coded thresholds
-- Context window bar stacked above rate limit bars
+- Context window bar with token counts
 - 5-hour and 7-day rate limit utilization with countdown to reset
-- Session cost and output tokens on line 1
+- Session cost and output tokens
 - Per-turn wall-clock timing with completion timestamps via hooks
 - Extra usage spend tracking
+- Git branch and dirty state
 
 ## License
 
